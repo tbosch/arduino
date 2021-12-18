@@ -1,37 +1,50 @@
-#include <TFT_22_ILI9225.h>
-#include <SPI.h>
-#include "RF24.h"
+// Include application, user and local libraries
+#include "SPI.h"
+#include "TFT_22_ILI9225.h"
 
-RF24 radio(9, 10);                // define the object to control NRF24L01
-const byte addresses[6] = "Free1";// define communication address which should correspond to remote control
-// wireless communication
-int dataWrite[8];                 // define array used to save the write data
-// pin
-const int pot1Pin = A0,           // define POT1 Potentiometer
-          pot2Pin = A1,           // define POT2 Potentiometer
-          joystickXPin = A2,      // define pin for direction X of joystick
-          joystickYPin = A3,      // define pin for direction Y of joystick
-          joystickZPin = 7,       // define pin for direction Z of joystick
-          s1Pin = 4,              // define pin for S1
-          s2Pin = 3,              // define pin for S2
-          s3Pin = 2,              // define pin for S3
-          led1Pin = 6,            // define pin for LED1 which is close to POT1 and used to indicate the state of POT1
-          led2Pin = 5,            // define pin for LED2 which is close to POT2 and used to indicate the state of POT2
-          led3Pin = 8;            // define pin for LED3 which is close to NRF24L01 and used to indicate the state of NRF24L01
-
-int trimX;
-int trimY;
-
-#define TFT_RST 0
-#define TFT_RS  A4
-#define TFT_CS  A5  // SS
+#ifdef ARDUINO_ARCH_STM32F1
+#define TFT_RST PA1
+#define TFT_RS  PA2
+#define TFT_CS  PA0 // SS
+#define TFT_SDI PA7 // MOSI
+#define TFT_CLK PA5 // SCK
+#define TFT_LED 0 // 0 if wired to +5V directly
+#elif defined(ESP8266)
+#define TFT_RST 4   // D2
+#define TFT_RS  5   // D1
+#define TFT_CLK 14  // D5 SCK
+//#define TFT_SDO 12  // D6 MISO
+#define TFT_SDI 13  // D7 MOSI
+#define TFT_CS  15  // D8 SS
+#define TFT_LED 2   // D4     set 0 if wired to +5V directly -> D3=0 is not possible !!
+#elif defined(ESP32)
+#define TFT_RST 26  // IO 26
+#define TFT_RS  25  // IO 25
+#define TFT_CLK 14  // HSPI-SCK
+//#define TFT_SDO 12  // HSPI-MISO
+#define TFT_SDI 13  // HSPI-MOSI
+#define TFT_CS  15  // HSPI-SS0
+#define TFT_LED 0   // 0 if wired to +5V directly
+SPIClass hspi(HSPI);
+#else
+#define TFT_RST 8
+#define TFT_RS  9
+#define TFT_CS  10  // SS
 #define TFT_SDI 11  // MOSI
 #define TFT_CLK 13  // SCK
-#define TFT_LED 0   // 0 if wired to +5V directly
+#define TFT_LED 3   // 0 if wired to +5V directly
+#endif
+
 #define TFT_BRIGHTNESS 200 // Initial brightness of TFT backlight (optional)
 
 // Use hardware SPI (faster - on Uno: 13-SCK, 12-MISO, 11-MOSI)
 TFT_22_ILI9225 tft = TFT_22_ILI9225(TFT_RST, TFT_RS, TFT_CS, TFT_LED, TFT_BRIGHTNESS);
+// Use software SPI (slower)
+//TFT_22_ILI9225 tft = TFT_22_ILI9225(TFT_RST, TFT_RS, TFT_CS, TFT_SDI, TFT_CLK, TFT_LED, TFT_BRIGHTNESS);
+
+// Variables and constants
+uint16_t x, y;
+boolean flag = false;
 
 /*
  * Tux black/white image in 180x220 converted using Ardafruit bitmap converter
@@ -261,97 +274,105 @@ static const uint8_t PROGMEM tux[] =
 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xf0
 };
 
+// Setup
 void setup() {
-  Serial.begin(9600);
-  // NRF24L01
-  radio.begin();                      // initialize RF24
-  radio.setPALevel(RF24_PA_MAX);      // set power amplifier (PA) level
-  radio.setDataRate(RF24_1MBPS);      // set data rate through the air
-  radio.setRetries(0, 15);            // set the number and delay of retries
-  radio.openWritingPipe(addresses);   // open a pipe for writing
-  radio.openReadingPipe(1, addresses);// open a pipe for reading
-  radio.stopListening();              // stop listening for incoming messages
-  
-// pin
-  pinMode(joystickZPin, INPUT);       // set led1Pin to input mode
-  pinMode(s1Pin, INPUT);              // set s1Pin to input mode
-  pinMode(s2Pin, INPUT);              // set s2Pin to input mode
-  pinMode(s3Pin, INPUT);              // set s3Pin to input mode
-  pinMode(led1Pin, OUTPUT);           // set led1Pin to output mode
-  pinMode(led2Pin, OUTPUT);           // set led2Pin to output mode
-  pinMode(led3Pin, OUTPUT);           // set led3Pin to output mode
-
-  // initialyze trim
-  trimX = analogRead(joystickXPin) - 512;
-  trimY = analogRead(joystickYPin) - 512;
-  Serial.print(">>> Init. X:");
-  Serial.print(analogRead(joystickXPin));
-  Serial.print(" Y:");
-  Serial.print(analogRead(joystickYPin));
-  Serial.println();
-
+#if defined(ESP32)
+  hspi.begin();
+  tft.begin(hspi);
+#else
   tft.begin();
-  // TODO: Print car image instead of tux and in a smaller version.
+#endif
+  Serial.begin(9600);
+}
+
+// Loop
+void loop() {
+    
+  tft.drawRectangle(0, 0, tft.maxX() - 1, tft.maxY() - 1, COLOR_WHITE);
+  tft.setFont(Terminal6x8);
+  tft.drawText(10, 10, "hello!");
+  delay(1000);
+  
+  tft.clear();
+  tft.drawText(10, 20, "clear");
+  delay(1000);
+
+  tft.drawText(10, 30, "text small");
+  tft.setBackgroundColor(COLOR_YELLOW);
+  tft.setFont(Terminal12x16);
+  tft.drawText(90, 30, "BIG", COLOR_RED);
+  tft.setBackgroundColor(COLOR_BLACK);
+  tft.setFont(Terminal6x8);
+  delay(1000);
+
+  tft.drawText(10, 40, "setBacklight off");
+  delay(500);
+  tft.setBacklight(LOW);
+  delay(500);
+  tft.setBacklight(HIGH);
+  tft.drawText(10, 50, "setBacklight on");
+  delay(1000);
+
+  tft.drawRectangle(10, 10, 110, 110, COLOR_BLUE);
+  tft.drawText(10, 60, "rectangle");
+  delay(1000);
+
+  tft.fillRectangle(20, 20, 120, 120, COLOR_RED);
+  tft.drawText(10, 70, "solidRectangle");
+  delay(1000);
+
+  tft.drawCircle(80, 80, 50, COLOR_YELLOW);
+  tft.drawText(10, 80, "circle");
+  delay(1000);
+
+  tft.fillCircle(90, 90, 30, COLOR_GREEN);
+  tft.drawText(10, 90, "solidCircle");
+  delay(1000);
+
+  tft.drawLine(0, 0, tft.maxX() - 1, tft.maxY() - 1, COLOR_CYAN);
+  tft.drawText(10, 100, "line");
+  delay(1000);
+
+  for (uint8_t i = 0; i < 127; i++)
+    tft.drawPixel(random(tft.maxX()), random(tft.maxY()), random(0xffff));
+  tft.drawText(10, 110, "point");
+  delay(1000);
+
+  for (uint8_t i = 0; i < 4; i++) {
+    tft.clear();
+    tft.setOrientation(i);
+    tft.drawRectangle(0, 0, tft.maxX() - 1, tft.maxY() - 1, COLOR_WHITE);
+    tft.drawText(10, 10, "setOrientation (" + String("0123").substring(i, i + 1) + ")");
+    tft.drawRectangle(10, 20, 50, 60, COLOR_GREEN);
+    tft.drawCircle(70, 80, 10, COLOR_BLUE);
+    tft.drawLine(30, 40, 70, 80, COLOR_YELLOW);
+    delay(1000);
+  }
+
+  tft.setOrientation(0);
+  tft.clear();
+  tft.drawText(10, 100, "drawing bitmap");
+  delay(1000);
   tft.clear();
   tft.setBackgroundColor(COLOR_BLACK);
-  tft.drawBitmap(0, 0, tux, 180, 220, COLOR_WHITE);  
-}
-
-void loop()
-{
-  int x = analogRead(joystickXPin) - trimX;
-  int y = analogRead(joystickYPin) - trimY;
-  int s3 = digitalRead(s3Pin);
-  if(s3 == 0){
-    x = limitSpeed(x);
-    y = limitSpeed(y);
-  }
+  tft.drawBitmap(0, 0, tux, 180, 220, COLOR_WHITE);
+  delay(5000);
   
-  if (true) {
-    Serial.print(">>> X:");
-    Serial.print(x);
-    Serial.print(" Y:");
-    Serial.print(y);
-    Serial.print(" S3:");
-    Serial.print(s3);
-    Serial.println();
-  }
-
-  // put the values of rocker, switch and potentiometer into the array
-  dataWrite[0] = analogRead(pot1Pin); // save data of Potentiometer 1
-  dataWrite[1] = analogRead(pot2Pin); // save data of Potentiometer 2
-  dataWrite[2] = x;  // save data of direction X of joystick
-  dataWrite[3] = y;  // save data of direction Y of joystick
-  dataWrite[4] = digitalRead(joystickZPin); // save data of direction Z of joystick
-  dataWrite[5] = digitalRead(s1Pin);        // save data of switch 1
-  dataWrite[6] = digitalRead(s2Pin);        // save data of switch 2
-  dataWrite[7] = s3;        // save data of switch 3
-
-  // write radio data
-  if (radio.writeFast(&dataWrite, sizeof(dataWrite)))
-  {
-    digitalWrite(led3Pin, HIGH);
-  }
-  else {
-    digitalWrite(led3Pin, LOW);
-  }
-  delay(20);
-
-  // make LED emit different brightness of light according to analog of potentiometer
-  analogWrite(led1Pin, map(dataWrite[0], 0, 1023, 0, 255));
-  analogWrite(led2Pin, map(dataWrite[1], 0, 1023, 0, 255));
-
-  // TODO: Show sonic distances around the car.
-  tft.drawLine(random(tft.maxX()), random(tft.maxY()), random(tft.maxX()), random(tft.maxY()), random(0xffff));
+  tft.setOrientation(0);
+  tft.clear();
+  tft.setFont(Terminal12x16);
+  tft.setBackgroundColor(COLOR_YELLOW);
+  tft.drawText(10, 40, "bye!", COLOR_RED);
+  tft.setBackgroundColor(COLOR_BLACK);
+  tft.setFont(Terminal6x8);
+  delay(1000);
   
-}
+  tft.drawText(10, 60, "off");
+  delay(1000);
+  
+  tft.setBacklight(false);
+  tft.setDisplay(false);
+  
+  while(true);
 
-int limitSpeed(int speed) {
-  if (speed < 312){
-    return 312;
-  }
-  if (speed > 712){
-    return 712;
-  }
-  return speed;
 }
