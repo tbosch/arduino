@@ -1,8 +1,9 @@
 #include "RF24_Remote.h"
 
 RF24 radio(PIN_SPI_CE, PIN_SPI_CSN);
-const byte addresses[6] = "Free1";
+const byte addresses[6] = {"Free1"};
 int nrfDataRead[8];
+int nrfWriteData[8] = {0,1,2,3,4,5,6,7};
 bool nrfComplete = false;
 
 bool nrf24L01Setup() {
@@ -10,10 +11,11 @@ bool nrf24L01Setup() {
   if (radio.begin()) {                      // initialize RF24
     radio.setPALevel(RF24_PA_MAX);      // set power amplifier (PA) level
     radio.setDataRate(RF24_1MBPS);      // set data rate through the air
-    radio.setRetries(0, 15);            // set the number and delay of retries
-    radio.openWritingPipe(addresses);   // open a pipe for writing
+    radio.setRetries(15, 15);            // set the number and delay of retries
+//    radio.enableAckPayload();                     // Allow optional ack payloads
     radio.openReadingPipe(1, addresses);// open a pipe for reading
     radio.startListening();             // start monitoringtart listening on the pipes opened
+//    radio.writeAckPayload(1, nrfWriteData, sizeof(nrfWriteData));          // Pre-load an ack-paylod into the FIFO buffer for pipe 1
 
     FlexiTimer2::set(20, 1.0 / 1000, checkNrfReceived); // call every 20 1ms "ticks"
     FlexiTimer2::start();
@@ -26,9 +28,8 @@ bool nrf24L01Setup() {
 void checkNrfReceived() {
   delayMicroseconds(1000);
   if (radio.available()) {             // if receive the data
-    while (radio.available()) {         // read all the data
-      radio.read(nrfDataRead, sizeof(nrfDataRead));   // read data
-    }
+    radio.read(nrfDataRead, sizeof(nrfDataRead));   // read data
+//    radio.writeAckPayload(1, nrfWriteData, sizeof(nrfWriteData) );
     nrfComplete = true;
     return;
   }

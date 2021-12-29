@@ -78,11 +78,10 @@ void loop() {
     setBuzzer(true);
     if( nrfDataRead[7] == 1) {
       motorRun(0, 0);
-     return;
+      return;
     }
   } else {
-    setBuzzer(false);
-   
+    setBuzzer(false);   
   }
  
   

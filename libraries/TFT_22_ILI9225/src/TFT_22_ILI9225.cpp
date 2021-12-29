@@ -1157,6 +1157,7 @@ void TFT_22_ILI9225::_drawBitmap(int16_t x, int16_t y, const uint8_t *bitmap, in
         }
     }
     endWrite();
+    _resetWindow();
 }
 
 
