@@ -3,7 +3,7 @@
 #include "RF24.h"
 
 RF24 radio(9, 10);                // define the object to control NRF24L01
-const byte addresses[6] = {"Free1"};
+const byte address[6] = {"Bosch"};
 // wireless communication
 int dataWrite[8];                 // define array used to save the write data
 int dataRead[8];                 // define array used to save the read data
@@ -86,15 +86,15 @@ static const uint8_t PROGMEM car[] =
 void setup() {
   Serial.begin(9600);
   // NRF24L01
-  radio.begin();                      // initialize RF24
-  radio.setPALevel(RF24_PA_MAX);      // set power amplifier (PA) level
-  radio.setDataRate(RF24_1MBPS);      // set data rate through the air
-  radio.setRetries(15, 15);            // set the number and delay of retries
-//  radio.enableAckPayload();                     // Allow optional ack payloads
-  radio.openWritingPipe(addresses);   // open a pipe for writing
+  radio.begin();
+  // TODO: Use RF24_PA_HIGH if the range is not enough.
+  radio.setPALevel(RF24_PA_LOW);
+  radio.setRetries(15, 15);
+  radio.enableAckPayload();                     // Allow optional ack payloads
+  radio.openWritingPipe(address);   // open a pipe for writing
   radio.stopListening();              // stop listening for incoming messages
   
-// pin
+  // pin
   pinMode(joystickZPin, INPUT);       // set led1Pin to input mode
   pinMode(s1Pin, INPUT);              // set s1Pin to input mode
   pinMode(s2Pin, INPUT);              // set s2Pin to input mode
@@ -132,7 +132,7 @@ void loop()
     y = limitSpeed(y);
   }
   
-  if (true) {
+  if (false) {
     Serial.print(">>> X:");
     Serial.print(x);
     Serial.print(" Y:");
@@ -153,12 +153,20 @@ void loop()
   dataWrite[7] = s3;        // save data of switch 3
 
   // write radio data
-  if (radio.writeFast(dataWrite, sizeof(dataWrite)))
+  if (radio.write(dataWrite, sizeof(dataWrite)))
   {
     digitalWrite(led3Pin, HIGH);
-//    if (radio.available()) {         // read all the data
-//      radio.read(dataRead, sizeof(dataRead));   // read data
-//    }
+    if (radio.available()) {         // read all the data
+      radio.read(dataRead, sizeof(dataRead));   // read data
+      if (true) {
+        Serial.print(">>> dataRead:");
+        for (int i=0; i<8; ++i) {
+          Serial.print(dataRead[i]);
+          Serial.print(" ");
+        }
+        Serial.println();
+      }      
+    }
   }
   else {
     digitalWrite(led3Pin, LOW);

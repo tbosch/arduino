@@ -47,6 +47,7 @@ enum RemoteModeSwitchState {
 #define MODE_OBSTACKE_AVOIDANCE			ON_OFF_OFF
 
 extern int nrfDataRead[8];
+extern int nrfDataWrite[8];
 
 bool nrf24L01Setup();
 void checkNrfReceived();

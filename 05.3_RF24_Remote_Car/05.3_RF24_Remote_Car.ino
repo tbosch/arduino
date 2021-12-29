@@ -58,6 +58,9 @@ void setup() {
 // 
 void loop() {  
   readSonicSensor();
+  for (int i=0; i<8; ++i) {
+    nrfDataWrite[i] = sonicDistances[i];
+  }
   if (/*debug=*/false) {
     Serial.print(">>> min distance in cm:");
     Serial.print(sonicMinDistance);

@@ -23,9 +23,6 @@
 
 #define PIN_SPI_CE			9
 #define PIN_SPI_CSN			10
-#define PIN_SPI_MOSI		11
-#define PIN_SPI_MISO		12
-#define PIN_SPI_SCK			13
 
 #define PIN_BATTERY			A0
 #define PIN_BUZZER			A0
