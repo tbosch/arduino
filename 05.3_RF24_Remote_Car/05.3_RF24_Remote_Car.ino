@@ -77,7 +77,7 @@ void loop() {
     Serial.println();
   }
 
-  if (sonicMinDistance < 80){
+  if (sonicMinDistance < 100){
     setBuzzer(true);
     if( nrfDataRead[7] == 1) {
       motorRun(0, 0);
