@@ -25,6 +25,7 @@ int trimY;
 int centerX;
 int centerY;
 
+#define DEBUG false
 #define TFT_RST 0
 #define TFT_RS  A4
 #define TFT_CS  A5  // SS
@@ -86,7 +87,9 @@ static const uint8_t PROGMEM car[] =
 
 
 void setup() {
-  Serial.begin(9600);
+  if (DEBUG) {
+    Serial.begin(9600);
+  }
   // NRF24L01
   radio.begin();
   // TODO: Use RF24_PA_HIGH if the range is not enough.
@@ -108,11 +111,13 @@ void setup() {
   // initialyze trim
   trimX = analogRead(joystickXPin) - 512;
   trimY = analogRead(joystickYPin) - 512;
-  Serial.print(">>> Init. X:");
-  Serial.print(analogRead(joystickXPin));
-  Serial.print(" Y:");
-  Serial.print(analogRead(joystickYPin));
-  Serial.println();
+  if (DEBUG) {
+    Serial.print(">>> Init. X:");
+    Serial.print(analogRead(joystickXPin));
+    Serial.print(" Y:");
+    Serial.print(analogRead(joystickYPin));
+    Serial.println();
+  }
 
   tft.begin();
   // TODO: Print car image instead of tux and in a smaller version.
@@ -143,7 +148,7 @@ void loop()
     y = limitSpeed(y);
   }
   
-  if (false) {
+  if (DEBUG) {
     Serial.print(">>> X:");
     Serial.print(x);
     Serial.print(" Y:");
@@ -164,37 +169,57 @@ void loop()
   dataWrite[7] = s3;        // save data of switch 3
 
   // write radio data
-  if (radio.write(dataWrite, sizeof(dataWrite)))
+  if (radio.writeFast(dataWrite, sizeof(dataWrite)))
   {
     digitalWrite(led3Pin, HIGH);
-    if (radio.available()) {         // read all the data
-      tft.drawLine(centerX-10,centerY-dataRead[6],centerX+10,centerY-dataRead[6],COLOR_BLACK);
-      radio.read(dataRead, sizeof(dataRead));   // read data
-      tft.drawLine(centerX-10,centerY-dataRead[6],centerX+10,centerY-dataRead[6],COLOR_RED);
-//      if (true) {
-//        Serial.print(">>> dataRead:");
-//        for (int i=0; i<8; ++i) {
-//          Serial.print(dataRead[i]);
-//          Serial.print(" ");
-//        }
-//        Serial.println();
-//      }      
-      Serial.println(dataRead[6]);
-
-    }
   }
   else {
     digitalWrite(led3Pin, LOW);
+  }
+  if (radio.available()) {         // read all the data
+    drawFront(dataRead[6],COLOR_BLACK);
+    drawBack(dataRead[1],COLOR_BLACK);
+    drawRight(dataRead[3],COLOR_BLACK);
+    drawLeft(dataRead[4],COLOR_BLACK);
+    radio.read(dataRead, sizeof(dataRead));   // read data
+    drawFront(dataRead[6],COLOR_RED);
+    drawBack(dataRead[1],COLOR_RED);
+    drawRight(dataRead[3],COLOR_RED);
+    drawLeft(dataRead[4],COLOR_RED);
+    if (DEBUG) {
+      Serial.print(">>> dataRead:");
+      for (int i=0; i<8; ++i) {
+        Serial.print(dataRead[i]);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }
   }
   delay(20);
 
   // make LED emit different brightness of light according to analog of potentiometer
   analogWrite(led1Pin, map(dataWrite[0], 0, 1023, 0, 255));
   analogWrite(led2Pin, map(dataWrite[1], 0, 1023, 0, 255));
-
-  // TODO: Show sonic distances around the car.
-  
 }
+
+void drawFront(int distance, int color) {
+  tft.drawLine(centerX-10,centerY-20-distance,centerX+10,centerY-20-distance,color);  
+}
+
+void drawBack(int distance, int color) {
+  tft.drawLine(centerX-10,centerY+20+distance,centerX+10,centerY+20+distance,color);  
+}
+
+
+void drawRight(int distance, int color) {
+  tft.drawLine(centerX+20+distance,centerY-10,centerX+20+distance,centerY+10,color);  
+}
+
+
+void drawLeft(int distance, int color) {
+  tft.drawLine(centerX-20-distance,centerY-10,centerX-20-distance,centerY+10,color);  
+}
+
 
 int limitSpeed(int speed) {
   if (speed < 312){
