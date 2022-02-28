@@ -9,6 +9,7 @@ bool nrfComplete = false;
 bool nrf24L01Setup() {
   // NRF24L01
   if (radio.begin()) {
+    radio.setDataRate(RF24_1MBPS);
     // TODO: Use RF24_PA_HIGH if the range is not enough.
     radio.setPALevel(RF24_PA_LOW);
     radio.setRetries(15, 15);

@@ -35,8 +35,7 @@
 #define SONIC_SPEED_CM_PER_US 0.033
 
 u32 lastNrfUpdateTime = 0;
-u32 lastBeepUpdateTime = 0;
-float sonicResolution = 0;
+int sonicSensorIdx = 0;
 volatile long sonicInterruptTime = 0;
 
 void setup() {
@@ -57,12 +56,15 @@ void setup() {
 // -> show a compass on the client display!
 // TODO: Enable the LED strip again too!
 void loop() {
-  long measureStartTime = micros();  
-  for (int i=0; i<8; ++i) {
-    float distance = readSonicSensor(i);
-    if (distance > 0) {
-      nrfDataWrite[i] = readSonicSensor(i);
-    }
+  long measureStartTime = micros();
+  
+  float distance = readSonicSensor(sonicSensorIdx);
+  nrfDataWrite[sonicSensorIdx] = readSonicSensor(sonicSensorIdx);
+  // TODO: Maybe try a different sensor pattern, so that they don't interfer with each other?
+  // E.g. opposite sensors after each other?
+  ++sonicSensorIdx;
+  if (sonicSensorIdx >= 8) {
+    sonicSensorIdx = 0;
   }
   long measureDuration = micros() - measureStartTime;
   if (DEBUG) {
@@ -133,7 +135,8 @@ float readSonicSensor(int idx) {
     return 0;
   }
   // Enable interrupts only for that sensor.
-  writeIOExpansionRegister(MCP23017_GPINTENB,1<<idx);
+  byte input_mask = 1<<idx;
+  writeIOExpansionRegister(MCP23017_GPINTENB,input_mask);
 
   // make trigPin output high level lasting for 10μs to triger HC_SR04
   // Note: Somehow I wired the trigger and sensor pins in the opposite directions!
@@ -150,7 +153,7 @@ float readSonicSensor(int idx) {
   Wire.endTransmission();
   for (int i=0; i<10 && startTime == 0; i++) {
     Wire.requestFrom(MCP23017_ADDRESS, 1, /*sendStop=*/false);  
-    if (Wire.read() > 0) {
+    if ((Wire.read() & input_mask) > 0) {
       startTime = micros();
     }
   }
@@ -162,7 +165,7 @@ float readSonicSensor(int idx) {
   delayMicroseconds(SONIC_READ_TIME_US);
   
   if (sonicInterruptTime == 0) {
-    return SONIC_READ_TIME_US * SONIC_SPEED_CM_PER_US;
+    return 0;
   }    
   return (sonicInterruptTime - startTime) * SONIC_SPEED_CM_PER_US;
 }

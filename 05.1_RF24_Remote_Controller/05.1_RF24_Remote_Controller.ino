@@ -92,6 +92,7 @@ void setup() {
   }
   // NRF24L01
   radio.begin();
+  radio.setDataRate(RF24_1MBPS);
   // TODO: Use RF24_PA_HIGH if the range is not enough.
   radio.setPALevel(RF24_PA_LOW);
   radio.setRetries(15, 15);
@@ -203,20 +204,32 @@ void loop()
 }
 
 void drawFront(int distance, int color) {
+  if (distance == 0) {
+    return;
+  }
   tft.drawLine(centerX-10,centerY-20-distance,centerX+10,centerY-20-distance,color);  
 }
 
 void drawBack(int distance, int color) {
+  if (distance == 0) {
+    return;
+  }
   tft.drawLine(centerX-10,centerY+20+distance,centerX+10,centerY+20+distance,color);  
 }
 
 
 void drawRight(int distance, int color) {
+  if (distance == 0) {
+    return;
+  }
   tft.drawLine(centerX+20+distance,centerY-10,centerX+20+distance,centerY+10,color);  
 }
 
 
 void drawLeft(int distance, int color) {
+  if (distance == 0) {
+    return;
+  }
   tft.drawLine(centerX-20-distance,centerY-10,centerX-20-distance,centerY+10,color);  
 }
 
