@@ -17,16 +17,19 @@ JPEGDEC jpeg;
 
 volatile uint16_t frame_count = 0;
 
-typedef struct
-{
-    uint8_t *buf;
-    int len;
-} DECODE_MSG;
+struct DecodeMsg {
+  uint8_t *buf;
+  int len;
+};
+
+QueueHandle_t decode_queue;
 
 void setup()
 {
   Serial.begin(115200);
   Serial.println("esp32remote");
+
+  decode_queue = xQueueCreate( 1, sizeof( DecodeMsg ) );
 
   // Initialise the TFT
   tft.begin();
@@ -36,8 +39,18 @@ void setup()
   tft.initDMA(); // To use SPI DMA you must call initDMA() to setup the DMA engine
 
   xTaskCreatePinnedToCore(
-    loopNetwork,    // Function that should be called
-    "loopNetwork",   // Name of the task (for debugging)
+    receiveTask,    // Function that should be called
+    "receiveTask",   // Name of the task (for debugging)
+    1024*50,            // Stack size (bytes)
+    NULL,            // Parameter to pass
+    1,               // Task priority
+    NULL,             // Task handle,
+    1                // CPU
+  );
+
+  xTaskCreatePinnedToCore(
+    decodeTask,    // Function that should be called
+    "decodeTask",   // Name of the task (for debugging)
     1024*50,            // Stack size (bytes)
     NULL,            // Parameter to pass
     1,               // Task priority
@@ -47,12 +60,12 @@ void setup()
 }
 
 void loop() {
-  delay(1000);
+  vTaskDelay(1000);
   Serial.printf("FPS: %d\n", frame_count);
   frame_count = 0;
 }
 
-void loopNetwork(void* arg) {
+void receiveTask(void* arg) {
   // Note: we never call Wifi.end() as this loops never ends.
   WiFi.begin(SSID, PASSWORD);    
   HTTPClient http;
@@ -63,12 +76,15 @@ void loopNetwork(void* arg) {
   tft.startWrite();
   
   uint8_t* buf = (uint8_t*)malloc(RECEIVE_BUF_SIZE);
+  uint8_t* next_buf = (uint8_t*)malloc(RECEIVE_BUF_SIZE);
   
   int read_len = 0;
   
   while (true) {
+    vTaskDelay(0);
+    
     if (WiFi.status() != WL_CONNECTED) {
-      delay(500);
+      vTaskDelay(500);
       Serial.printf("[RECEIVE] Waiting to connect to %s\n.", SSID);      
       continue;
     }
@@ -77,7 +93,7 @@ void loopNetwork(void* arg) {
       int httpCode = http.GET();
       if (httpCode != HTTP_CODE_OK) {
         Serial.printf("[RECEIVE] HTTP GET failed, error: %s\n", http.errorToString(httpCode).c_str());
-        delay(500);
+        vTaskDelay(500);
         continue;
       }
     }  
@@ -92,7 +108,7 @@ void loopNetwork(void* arg) {
     }
     int available = stream->available();
     if (available <= 0) {
-      delay(10);
+      vTaskDelay(10);
       continue;
     }
     int count = stream->readBytes(buf + read_len, min(available, remaining_buf_size));
@@ -101,16 +117,16 @@ void loopNetwork(void* arg) {
     // in the previous call to readBytes.
     int jpeg_end = findJpegEnd(buf, next_read_len, max(0, read_len-1));
     if (jpeg_end > 0) {
-      int jpeg_start = findJpegStart(buf, jpeg_end);
-      if (jpeg_start < 0) {
-        Serial.println("[RECEIVE] Could not find jpeg start.");
-      } else {
-        if (!drawJpeg(buf+jpeg_start, jpeg_end-jpeg_start)) {
-          Serial.println("[RECEIVE] Error drawing jpeg.");
-        }
-      }
+      DecodeMsg msg;
+      msg.buf = buf;
+      msg.len = jpeg_end;
+      xQueueSend(decode_queue, &msg, portMAX_DELAY);
+      
       next_read_len -= jpeg_end;
-      memcpy(buf, buf + jpeg_end, next_read_len);
+      memcpy(next_buf, buf + jpeg_end, next_read_len);
+      uint8_t* tmp = buf;
+      buf = next_buf;
+      next_buf = tmp;        
     }
     read_len = next_read_len;
   }
@@ -132,6 +148,25 @@ int findJpegEnd(uint8_t* buf, size_t len, int pos) {
     }
   }
   return -1;  
+}
+
+void decodeTask(void* arg) {
+  while (true) {
+    DecodeMsg msg;
+    int16_t start = millis();
+    xQueuePeek(decode_queue, &msg, portMAX_DELAY);
+    int16_t end = millis();
+    
+    int jpeg_start = findJpegStart(msg.buf, msg.len);
+    if (jpeg_start >= 0) {
+      if (!drawJpeg(msg.buf+jpeg_start, msg.len-jpeg_start)) {
+        Serial.println("[DECODE] Error drawing jpeg.");
+      }
+    } else {
+      Serial.println("[DECODE] Could not find jpeg start.");
+    }
+    xQueueReceive(decode_queue, &msg, 0);
+  }
 }
 
 bool drawJpeg(uint8_t* buf, size_t len) {
