@@ -47,9 +47,11 @@ Fast JPEG decoding and drawing:
 * I.e. need to wait for dma do finish before next
   transfer. Then we are only limited by spi speed.
 
-Getting 16 to 17 FPS.
+Getting 14 FPS.
 - Note: The decode task has no wait time in between runs.
   => Speed limited by SPI bus speed.
+  => Set speed to 40 MHz. Using 80 Mhz works too, but leads to 
+     Strange artifacts on the display.
 - Note: Receiving about 25 FPS from the server (i.e. without decoding the jpeg).
 ==> Good enough!!
 
