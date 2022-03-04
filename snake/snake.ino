@@ -45,10 +45,9 @@ enum Direction {
 };
 
 enum Cell {
-  DRAW_BIT = 1<<7,
-  DATA_BITMASK = ~DRAW_BIT,
-  RESERVED1 = 1,
-  RESERVED2 = 2,
+  BLANK = 0,
+  FRUIT1 = 1,
+  FRUIT2 = 2,
   RESERVED4 = 3,
   RESERVED5 = 4,  
   SNAKE_HEAD = 5,
@@ -56,10 +55,13 @@ enum Cell {
 
 int maxX, maxY;
 GameMode gameMode;
-int lastTick;
 bool wasJoystickDown;
-Direction lastDir;
 Cell board[BOARD_WIDTH][BOARD_HEIGHT] = {};
+Direction joystickDir;
+Direction snakeLastMoveDir;
+byte snakeMaxLength;
+long snakeLastMoveTime;
+int snakeWaitTime;
 
 void setup() {
   if (DEBUG) {
@@ -86,8 +88,6 @@ void setup() {
   maxX = tft.maxX() / 10 - 1;
   maxY = tft.maxY() / 10 - 1;
 
-  lastTick = currentTick();
-
   showScreen("Welcome to Snake!");
 }
 
@@ -96,11 +96,9 @@ void loop()
   
   Direction dir = readJoystickDir();
   bool isClick = readJoystickClick();
-  bool ticked = tickChanged();
 
-  if (gameMode == RUNNING && ticked) {
+  if (gameMode == RUNNING) {
     moveSnake(dir);
-    drawBoard();
   } else if (gameMode == STOPPED && isClick) {
     startGame();
   }
@@ -115,21 +113,44 @@ void showScreen(String msg) {
 void startGame() {
   tft.clear();
   gameMode = RUNNING;
-  lastDir = RIGHT;
+  snakeLastMoveDir = RIGHT;
+  joystickDir = RIGHT;
+  snakeMaxLength = 3;
+  snakeWaitTime = 300;
+  snakeLastMoveTime = millis();
   for (byte x=0; x<BOARD_WIDTH; ++x) {
     for (byte y=0; y<BOARD_HEIGHT; ++y) {
-      board[x][y] = DRAW_BIT;
+      board[x][y] = BLANK;
     }
   }
-  board[maxX/2][maxY/2] |= SNAKE_HEAD;
+  updateCell(maxX/2, maxY/2, SNAKE_HEAD);
+  for (byte i=0; i<5; ++i) {
+    updateCell(random(0, maxX+1), random(0, maxY+1), FRUIT1);
+  }
+  for (byte i=0; i<5; ++i) {
+    updateCell(random(0, maxX+1), random(0, maxY+1), FRUIT2);
+  }
 }
 
 void moveSnake(Direction dir) {
+  long now = millis();
+  if ((now - snakeLastMoveTime) <= snakeWaitTime) {
+    return;
+  }
+  if ((dir == LEFT && snakeLastMoveDir == RIGHT) || 
+      (dir == RIGHT && snakeLastMoveDir == LEFT) ||
+      (dir == UP && snakeLastMoveDir == DOWN) ||
+      (dir == DOWN && snakeLastMoveDir == UP)) {
+    // Don't allow 180 degree changes.
+    dir = snakeLastMoveDir;
+  }
+  snakeLastMoveDir = dir;
+  snakeLastMoveTime = now;
   byte headX = 0;
   byte headY = 0;
   for (byte x=0; x<BOARD_WIDTH; ++x) {
     for (byte y=0; y<BOARD_HEIGHT; ++y) {
-      if ((board[x][y] & DATA_BITMASK) == SNAKE_HEAD) {
+      if (board[x][y] == SNAKE_HEAD) {
         headX = x;
         headY = y;
         break;        
@@ -142,48 +163,46 @@ void moveSnake(Direction dir) {
     showScreen("Game over!");
     return;
   }
-  byte newHeadCell = board[newHeadX][newHeadY] & DATA_BITMASK;
+  byte newHeadCell = board[newHeadX][newHeadY];
   if (newHeadCell >= SNAKE_HEAD) {
     showScreen("Game over!");
     return;    
+  }
+  if (newHeadCell == FRUIT1) {
+    snakeMaxLength += 3;
+  }
+  if (newHeadCell == FRUIT2) {
+    snakeWaitTime = snakeWaitTime * 0.75;
   }
   
   // Clear the old tail / update the parts.  
   for (byte x=0; x<BOARD_WIDTH; ++x) {
     for (byte y=0; y<BOARD_HEIGHT; ++y) {
-      byte cell = board[x][y] & DATA_BITMASK;
+      byte cell = board[x][y];
       if (cell >= SNAKE_HEAD) {
-        if (cell - SNAKE_HEAD >= 6) {
-          cell = DRAW_BIT;
+        if (cell - SNAKE_HEAD >= snakeMaxLength) {
+          cell = BLANK;
         } else {
-          // Increment data but no new draw.
           cell++;
         }
-        board[x][y] = cell;
+        updateCell(x, y, cell);
       }
     }
   }
-  board[newHeadX][newHeadY] = SNAKE_HEAD | DRAW_BIT;
+  updateCell(newHeadX, newHeadY, SNAKE_HEAD);
 }
 
-void drawBoard() {
-  for (byte x=0; x<BOARD_WIDTH; ++x) {
-    for (byte y=0; y<BOARD_HEIGHT; ++y) {
-      Cell& cell = board[x][y];
-      if ((cell & DRAW_BIT) > 0) {        
-        cell &= ~DRAW_BIT;
-        drawCell(x, y, cell);
-      }
-    }
-  }
-}
-
-void drawCell(int x, int y, Cell cell) {
+void updateCell(int x, int y, Cell cell) {
+  board[x][y] = cell;
   // Note: coordinates are inclusive!
-  if (cell == 0) {
+  if (cell == BLANK) {
     tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_BLACK);    
-  } else {
+  } else if (cell == SNAKE_HEAD) {
     tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_WHITE);
+  } else if (cell == FRUIT1) {
+    tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_RED);
+  } else if (cell == FRUIT2) {
+    tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_BLUE);
   }
 }
 
@@ -214,19 +233,19 @@ Direction readJoystickDir() {
   int joystickY = trimY - analogRead(joystickYPin);
   
   if (abs(joystickX) > abs(joystickY)) {
-    if (joystickX < -100 && lastDir != RIGHT) {
-      lastDir = LEFT;
-    } else if (joystickX > 100 && lastDir != LEFT) {
-      lastDir = RIGHT;
+    if (joystickX < -100) {
+      joystickDir = LEFT;
+    } else if (joystickX > 100) {
+      joystickDir = RIGHT;
     }    
   } else {
-    if (joystickY < -100 && lastDir != DOWN) {
-      lastDir = UP;
-    } else if (joystickY > 100 && lastDir != UP) {
-      lastDir = DOWN;
+    if (joystickY < -100) {
+      joystickDir = UP;
+    } else if (joystickY > 100) {
+      joystickDir = DOWN;
     }    
-  }  
-  return lastDir;
+  }
+  return joystickDir;
 }
 
 bool readJoystickClick() {
@@ -234,15 +253,4 @@ bool readJoystickClick() {
   bool isClick = wasJoystickDown && !isJoystickDown;
   wasJoystickDown = isJoystickDown;
   return isClick;  
-}
-
-bool tickChanged() {
-  int tick = currentTick();
-  bool changed = tick != lastTick;
-  lastTick = tick;
-  return changed;  
-}
-
-int currentTick() {
-  return millis() / 200;
 }
