@@ -48,9 +48,8 @@ enum Cell {
   BLANK = 0,
   FRUIT1 = 1,
   FRUIT2 = 2,
-  RESERVED4 = 3,
-  RESERVED5 = 4,  
-  SNAKE_HEAD = 5,
+  FRUIT3 = 3,
+  SNAKE_HEAD = 4,
 };
 
 int maxX, maxY;
@@ -130,6 +129,9 @@ void startGame() {
   for (byte i=0; i<5; ++i) {
     updateCell(random(0, maxX+1), random(0, maxY+1), FRUIT2);
   }
+  for (byte i=0; i<3; ++i) {
+    updateCell(random(0, maxX+1), random(0, maxY+1), FRUIT3);
+  }
 }
 
 void moveSnake(Direction dir) {
@@ -160,12 +162,12 @@ void moveSnake(Direction dir) {
   byte newHeadX = addXDir(headX, dir);
   byte newHeadY = addYDir(headY, dir);
   if (newHeadX < 0 || newHeadX > maxX || newHeadY < 0 || newHeadY > maxY) {
-    showScreen("Game over!");
+    showScreen("You died!");
     return;
   }
   byte newHeadCell = board[newHeadX][newHeadY];
   if (newHeadCell >= SNAKE_HEAD) {
-    showScreen("Game over!");
+    showScreen("You died!");
     return;    
   }
   if (newHeadCell == FRUIT1) {
@@ -173,6 +175,9 @@ void moveSnake(Direction dir) {
   }
   if (newHeadCell == FRUIT2) {
     snakeWaitTime = snakeWaitTime * 0.75;
+  }
+  if (newHeadCell == FRUIT3) {
+    showScreen("You died!");
   }
   
   // Update the cells.
@@ -189,7 +194,7 @@ void moveSnake(Direction dir) {
           cell++;
         }
         updateCell(x, y, cell);
-      } else if (cell > 0) {
+      } else if (cell == FRUIT1 || cell == FRUIT2) {
         fruitCount++;
       }
     }
@@ -210,6 +215,8 @@ void updateCell(int x, int y, Cell cell) {
     tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_RED);
   } else if (cell == FRUIT2) {
     tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_BLUE);
+  } else if (cell == FRUIT3) {
+    tft.fillRectangle(x*10, y*10, x*10+9, y*10+9, COLOR_GREEN);
   }
 }
 
