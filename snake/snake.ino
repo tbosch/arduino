@@ -175,21 +175,28 @@ void moveSnake(Direction dir) {
     snakeWaitTime = snakeWaitTime * 0.75;
   }
   
-  // Clear the old tail / update the parts.  
+  // Update the cells.
+  byte fruitCount = 0;
   for (byte x=0; x<BOARD_WIDTH; ++x) {
     for (byte y=0; y<BOARD_HEIGHT; ++y) {
       byte cell = board[x][y];
-      if (cell >= SNAKE_HEAD) {
+      if (x == newHeadX && y == newHeadY) {
+        updateCell(x, y, SNAKE_HEAD);
+      } else if (cell >= SNAKE_HEAD) {
         if (cell - SNAKE_HEAD >= snakeMaxLength) {
           cell = BLANK;
         } else {
           cell++;
         }
         updateCell(x, y, cell);
+      } else if (cell > 0) {
+        fruitCount++;
       }
     }
   }
-  updateCell(newHeadX, newHeadY, SNAKE_HEAD);
+  if (fruitCount == 0) {
+    showScreen("You win!");    
+  }
 }
 
 void updateCell(int x, int y, Cell cell) {
