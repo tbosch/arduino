@@ -51,11 +51,6 @@ User_Setup.h (under ESP32):
 Control LED on the board (via digitalWrite)
 #define LED 21
 
-Joystick: (via analogRead)
-#define JOYSTICK_X 25
-#define JOYSTICK_Y 26
-#define JOYSTICK_Z 27
-
 Fast JPEG decoding and drawing:
 * See Flash_jpeg_dma example from TFT_eSPI library
   - modified to use https://github.com/bitbank2/JPEGDEC

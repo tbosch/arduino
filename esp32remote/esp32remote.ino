@@ -6,6 +6,9 @@
 #include <HTTPClient.h>
 
 #define RECEIVE_BUF_SIZE 40*1024
+#define SPEED_PIN 34
+#define DIR_PIN 35
+#define BEEP_PIN 32
 
 uint16_t  dmaBuffer1[128*16]; // Toggle buffer for 128*16 MCU block, 4096bytes
 uint16_t  dmaBuffer2[128*16]; // Toggle buffer for 128*16 MCU block, 4096bytes
@@ -23,6 +26,8 @@ struct DecodeMsg {
 };
 
 QueueHandle_t decode_queue;
+int speed_zero;
+int dir_zero;
 
 void setup()
 {
@@ -57,17 +62,40 @@ void setup()
     NULL,             // Task handle,
     0                // CPU
   );
+
+  WiFi.begin(SSID, PASSWORD);  
+
+  speed_zero = analogRead(SPEED_PIN);
+  dir_zero = analogRead(DIR_PIN);
 }
 
 void loop() {
-  vTaskDelay(1000);
+  vTaskDelay(500);
+  int beep = analogRead(BEEP_PIN);
+  int speed = analogRead(SPEED_PIN);
+  int dir = analogRead(DIR_PIN);
+
+  int x = dir - dir_zero;
+  int y = speed - speed_zero;
+  int speed_left, speed_right;
+  if (y < 0) {
+    speed_left = (-y + x) / 4;
+    speed_right = (-y - x) / 4;
+  }
+  else {
+    speed_left = (-y - x) / 4;
+    speed_right = (-y + x) / 4;
+  }
+  
+  Serial.printf("speed left: %d speed_right: %d\n", speed_left, speed_right);
+  controlVar(MOTOR_SPEED_LEFT, speed_left);
+  controlVar(MOTOR_SPEED_RIGHT, speed_right);
+
   Serial.printf("FPS: %d\n", frame_count);
   frame_count = 0;
 }
 
 void receiveTask(void* arg) {
-  // Note: we never call Wifi.end() as this loops never ends.
-  WiFi.begin(SSID, PASSWORD);    
   HTTPClient http;
   // Note: We never call http.end() as this loops never ends.
   http.begin(STREAM_URL);
@@ -138,6 +166,26 @@ void receiveTask(void* arg) {
     }
     read_len = next_read_len;
   }
+}
+
+bool controlVar(const char* name, int value) {
+  if (WiFi.status() != WL_CONNECTED) {
+    vTaskDelay(500);
+    Serial.printf("[CONTROL] Waiting to connect to %s\n.", SSID);      
+    return false;
+  }
+  HTTPClient http;
+  char buffer[256];
+  sprintf(buffer, CONTROL_URL, name, value);
+  Serial.printf("[CONTROL] GET %s\n", buffer);
+  http.begin(buffer);
+  int httpCode = http.GET();
+  http.end();
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.printf("[CONTROL] HTTP GET failed, error: %s\n", http.errorToString(httpCode).c_str());
+    return false;
+  }
+  return true;  
 }
 
 int findJpegStart(uint8_t* buf, size_t len) {

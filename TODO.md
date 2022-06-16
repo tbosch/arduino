@@ -7,10 +7,9 @@
   261564 Bytes für lokale Variablen verbleiben. Das Maximum sind 327680 Bytes.
   ==> should work!!
 
-- When the car is switched off and on, then the remote doesn't work anymore.
-  Is the reason on the car or on the remote?
-- The sonic sensors are really flaky.
-  E.g. when approaching a wall, the back sensor also starts to show something, which it souldn't.
-
-- Add safety stop back, directly on the car.
-  For case when remote gives us a wrong signal / somebody interferes
+- Remote control works a bit:
+  * GET requests seem to be slow! (About 500ms between update of left and right).
+    ==> Run them in parallel??
+  * Somehow the motors seem to switch direction while controlling??
+    ==> print values again, something is wrong here!
+  
