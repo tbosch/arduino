@@ -76,7 +76,15 @@ void receiveTask(void* arg) {
   tft.startWrite();
   
   uint8_t* buf = (uint8_t*)malloc(RECEIVE_BUF_SIZE);
+  if (buf == 0) {
+    Serial.printf("[RECEIVE]: Not enoug memory left\n.");
+    return;
+  }
   uint8_t* next_buf = (uint8_t*)malloc(RECEIVE_BUF_SIZE);
+  if (next_buf == 0) {
+    Serial.printf("[RECEIVE]: Not enoug memory left\n.");
+    return;
+  }
   
   int read_len = 0;
   

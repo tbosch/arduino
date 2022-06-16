@@ -1,10 +1,27 @@
+TTGO T8 V1.7 ESP32 4MB PSRAM TF Karte
+
 USB chip: CH9102F
 -> same driver as for CH34x
--> Drivers: http://www.wch.cn/downloads/CH34XSER_MAC_ZIP.html (translate to English)
--> !! Read the installation.pdf that is contained in the download!
--> !! Had to redo this 3 times, and try the ttgo camera first until this worked !!
+-> Is detected by macOS Big Sur (/dev/cu.usbmodem537A0464381), but doesn't work properly.
+-> Needs new driver: http://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html
+-> Device: /dev/cu.wchusbserial537A0464381
 
-Arduino support: https://github.com/espressif/arduino-esp32/issues/2591
+To flash:
+- esp32 has to turned on
+  * i.e. if there is a on/off switch, it has to be on!
+
+Install esp32 Arduino platform:
+1. Follow https://docs.espressif.com/projects/arduino-esp32/en/latest/installing.html
+2. This should e.g. provide WifiClient.h
+3. Select "ESP32 Dev" board
+4. Default Settings are ok.
+
+Arduino settings: https://github.com/espressif/arduino-esp32/issues/2591
+- use ESP32 dev board.
+- PSRAM: enabled.
+  ==> TODO: Without this, we fail to allocate the memory that we need.
+  ==> Does the usage of PSRAM slow us down?!!
+
 Examples: Under Arduino -> Examples for ESP32 Dev-> Wifi
 - e.g. Wifi Scan
 
@@ -54,6 +71,15 @@ Getting 14 FPS.
      Strange artifacts on the display.
 - Note: Receiving about 25 FPS from the server (i.e. without decoding the jpeg).
 ==> Good enough!!
+
+Camera module:
+- LILYGO® TTGO T-Camera ESP32 WROVER & PSRAM Camera Module ESP32-WROVER-B OV2640 Camera
+- USB Driver: 
+  * CP2102 USB-UART chip
+  * https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+- 
+
+
 
 Camera: original code under:
 https://github.com/espressif/esp32-camera/blob/master/README.md
