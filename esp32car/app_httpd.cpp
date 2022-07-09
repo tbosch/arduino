@@ -34,7 +34,7 @@ httpd_handle_t camera_httpd = NULL;
 
 int motor_speed_left = 0;
 int motor_speed_right = 0;
-
+int motor_speed_update_time_ms = 0;
 
 static size_t jpg_encode_stream(void *arg, size_t index, const void *data, size_t len)
 {
@@ -219,6 +219,7 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     size_t buf_len;
     char variable[32] = {0,};
     char value[32] = {0,};
+    char value2[32] = {0,};
 
     buf_len = httpd_req_get_url_query_len(req) + 1;
     if (buf_len > 1) {
@@ -230,6 +231,7 @@ static esp_err_t cmd_handler(httpd_req_t *req)
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
             if (httpd_query_key_value(buf, "var", variable, sizeof(variable)) == ESP_OK &&
                     httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK) {
+                httpd_query_key_value(buf, "val2", value2, sizeof(value2));
             } else {
                 free(buf);
                 httpd_resp_send_404(req);
@@ -247,6 +249,7 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     }
 
     int val = atoi(value);
+    int val2 = value2[0] != 0 ? atoi(value2) : 0;
     sensor_t *s = esp_camera_sensor_get();
     int res = 0;
 
@@ -275,9 +278,11 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     else if (!strcmp(variable, "special_effect")) res = s->set_special_effect(s, val);
     else if (!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, val);
     else if (!strcmp(variable, "ae_level")) res = s->set_ae_level(s, val);
-    else if (!strcmp(variable, "motor_speed_left")) motor_speed_left = val;
-    else if (!strcmp(variable, "motor_speed_right")) motor_speed_right = val;
-    else {
+    else if (!strcmp(variable, "motor_speed")) {
+      motor_speed_left = val;
+      motor_speed_right = val2;
+      motor_speed_update_time_ms = millis();
+    } else {
         res = -1;
     }
 

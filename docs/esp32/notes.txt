@@ -72,8 +72,10 @@ Camera module:
 - USB Driver: 
   * CP2102 USB-UART chip
   * https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
-- 
-
+- https://makeradvisor.com/esp32-ttgo-t-camera-pir-sensor-oled/
+- https://github.com/lewisxhe/esp32-camera-series
+- For programming, batteries need to be out.
+- Use /dev/cu.SLAB_USBtoUART interface.
 
 
 Camera: original code under:

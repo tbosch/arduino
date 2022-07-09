@@ -15,6 +15,7 @@ String ipAddress = "";
 extern void startCameraServer();
 extern int motor_speed_left;
 extern int motor_speed_right;
+extern int motor_speed_update_time_ms;
 
 OneButton button(BUTTON_1, true);
 
@@ -241,15 +242,28 @@ void setup()
 
 void drive(int speedLeft, int speedRight) {
   int absLeft = min(abs(speedLeft), 255);
+  // The motors don't work reliably with values lower than 80.
+  // Sometimes no motor works, sometimes only one of them.
+  if (absLeft < 80) {
+    absLeft = 0;
+  }
   int absRight = min(abs(speedRight), 255);
+  if (absRight < 80) {
+    absRight = 0;
+  }
   motorDriver.setDrive(0, speedLeft > 0, absLeft);
-  motorDriver.setDrive(1, speedRight > 0, absRight);
+  // Note: Somehow I wired the right motor in the wrong way :-)
+  motorDriver.setDrive(1, speedRight < 0, absRight);
 }
 
 void loop()
 {
     if (ui.update()) {
         button.tick();
+    }
+    if (millis() - motor_speed_update_time_ms > 500) {
+      motor_speed_left = 0;
+      motor_speed_right = 0;
     }
     drive(motor_speed_left, motor_speed_right);
 }

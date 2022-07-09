@@ -26,8 +26,6 @@ struct DecodeMsg {
 };
 
 QueueHandle_t decode_queue;
-int speed_zero;
-int dir_zero;
 
 void setup()
 {
@@ -63,33 +61,21 @@ void setup()
     0                // CPU
   );
 
-  WiFi.begin(SSID, PASSWORD);  
+  xTaskCreatePinnedToCore(
+    controlTask,    // Function that should be called
+    "controlTask",   // Name of the task (for debugging)
+    1024*50,            // Stack size (bytes)
+    NULL,            // Parameter to pass
+    1,               // Task priority
+    NULL,             // Task handle,
+    1                // CPU
+  );  
 
-  speed_zero = analogRead(SPEED_PIN);
-  dir_zero = analogRead(DIR_PIN);
+  WiFi.begin(SSID, PASSWORD);  
 }
 
 void loop() {
   vTaskDelay(500);
-  int beep = analogRead(BEEP_PIN);
-  int speed = analogRead(SPEED_PIN);
-  int dir = analogRead(DIR_PIN);
-
-  int x = dir - dir_zero;
-  int y = speed - speed_zero;
-  int speed_left, speed_right;
-  if (y < 0) {
-    speed_left = (-y + x) / 4;
-    speed_right = (-y - x) / 4;
-  }
-  else {
-    speed_left = (-y - x) / 4;
-    speed_right = (-y + x) / 4;
-  }
-  
-  Serial.printf("speed left: %d speed_right: %d\n", speed_left, speed_right);
-  controlVar(MOTOR_SPEED_LEFT, speed_left);
-  controlVar(MOTOR_SPEED_RIGHT, speed_right);
 
   Serial.printf("FPS: %d\n", frame_count);
   frame_count = 0;
@@ -166,26 +152,6 @@ void receiveTask(void* arg) {
     }
     read_len = next_read_len;
   }
-}
-
-bool controlVar(const char* name, int value) {
-  if (WiFi.status() != WL_CONNECTED) {
-    vTaskDelay(500);
-    Serial.printf("[CONTROL] Waiting to connect to %s\n.", SSID);      
-    return false;
-  }
-  HTTPClient http;
-  char buffer[256];
-  sprintf(buffer, CONTROL_URL, name, value);
-  Serial.printf("[CONTROL] GET %s\n", buffer);
-  http.begin(buffer);
-  int httpCode = http.GET();
-  http.end();
-  if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("[CONTROL] HTTP GET failed, error: %s\n", http.errorToString(httpCode).c_str());
-    return false;
-  }
-  return true;  
 }
 
 int findJpegStart(uint8_t* buf, size_t len) {
@@ -265,4 +231,52 @@ int tft_output(JPEGDRAW *pDraw)
   
   // Return 1 to decode next block.
   return 1;
+}
+
+void controlTask(void* arg) {
+  int speed_zero = analogRead(SPEED_PIN);
+  int dir_zero = analogRead(DIR_PIN);
+
+  HTTPClient http;
+  // Note: We never call http.end() as this loops never ends.
+  http.begin(CONTROL_HOST);
+
+  while (true) {
+    if (WiFi.status() != WL_CONNECTED) {
+      vTaskDelay(500);
+      Serial.printf("[CONTROL] Waiting to connect to %s\n.", SSID);
+      continue;
+    }
+    
+    // TODO: Also send beep (e.g. via val3 http variable?!
+    // TODO: Sometimes speed value jumps without us changing things!
+    // --> we probably need to use a different pin as it might be used internally
+    //     by ESP32 already!!
+    int beep = analogRead(BEEP_PIN);
+    int speed = analogRead(SPEED_PIN);
+    int dir = analogRead(DIR_PIN);
+  
+    int x = dir - dir_zero;
+    int y = speed - speed_zero;
+    int speed_left, speed_right;
+    if (y < 0) {
+      speed_left = (-y + x) / 4;
+      speed_right = (-y - x) / 4;
+    }
+    else {
+      speed_left = (-y - x) / 4;
+      speed_right = (-y + x) / 4;
+    }
+    
+    Serial.printf("speed left: %d speed_right: %d\n", speed_left, speed_right);
+    char buffer[256];
+    sprintf(buffer, MOTOR_CONTROL_PATH, speed_left, speed_right);
+    // TODO: Remove this once this is working.
+    Serial.printf("[CONTROL] GET %s\n", buffer);
+    http.setURL(buffer);
+    int httpCode = http.GET();
+    if (httpCode != HTTP_CODE_OK) {
+      Serial.printf("[CONTROL] HTTP GET failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+  }
 }
