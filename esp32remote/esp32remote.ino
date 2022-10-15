@@ -234,6 +234,10 @@ int tft_output(JPEGDRAW *pDraw)
 }
 
 void controlTask(void* arg) {
+  adcAttachPin(SPEED_PIN);
+  adcAttachPin(DIR_PIN);
+  analogSetPinAttenuation(SPEED_PIN, ADC_11db);
+  analogSetPinAttenuation(DIR_PIN, ADC_11db);
   int speed_zero = analogRead(SPEED_PIN);
   int dir_zero = analogRead(DIR_PIN);
 
@@ -249,30 +253,18 @@ void controlTask(void* arg) {
     }
     
     // TODO: Also send beep (e.g. via val3 http variable?!
-    // TODO: Sometimes speed value jumps without us changing things!
-    // --> we probably need to use a different pin as it might be used internally
-    //     by ESP32 already!!
     int beep = analogRead(BEEP_PIN);
     int speed = analogRead(SPEED_PIN);
     int dir = analogRead(DIR_PIN);
   
-    int x = dir - dir_zero;
-    int y = speed - speed_zero;
-    int speed_left, speed_right;
-    if (y < 0) {
-      speed_left = (-y + x) / 4;
-      speed_right = (-y - x) / 4;
-    }
-    else {
-      speed_left = (-y - x) / 4;
-      speed_right = (-y + x) / 4;
-    }
+    int x = (dir - dir_zero) / 4;
+    int y = (speed - speed_zero) / 4;
+    int speed_left = (-y - x) / 2;
+    int speed_right = (-y + x) / 2;
     
-    Serial.printf("speed left: %d speed_right: %d\n", speed_left, speed_right);
+     Serial.printf("speed left: %d speed_right: %d\n", speed_left, speed_right);
     char buffer[256];
     sprintf(buffer, MOTOR_CONTROL_PATH, speed_left, speed_right);
-    // TODO: Remove this once this is working.
-    Serial.printf("[CONTROL] GET %s\n", buffer);
     http.setURL(buffer);
     int httpCode = http.GET();
     if (httpCode != HTTP_CODE_OK) {
